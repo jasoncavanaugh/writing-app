@@ -40,6 +40,26 @@ export const posts = createTable(
   }),
 );
 
+export const blobs = createTable("blob", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
+    () => new Date(),
+  ),
+  content: varchar("content", { length: 500 }),
+  order: integer("order").notNull(),
+  parentId: integer("parentId"),
+  kids: varchar("kids", { length: 500 }), //[kid_id_1, kid_id_2, kid_id_3, ...]
+});
+export const blobRelations = relations(blobs, ({ one }) => ({
+  user: one(users, { fields: [blobs.userId], references: [users.id] }),
+}));
+
 export const users = createTable("user", {
   id: varchar("id", { length: 255 })
     .notNull()
@@ -56,6 +76,7 @@ export const users = createTable("user", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
+  blobs: many(blobs),
 }));
 
 export const accounts = createTable(
