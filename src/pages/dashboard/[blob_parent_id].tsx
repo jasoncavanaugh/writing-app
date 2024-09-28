@@ -93,7 +93,7 @@ export default function Dashboard() {
               return (
                 <li
                   key={k.id}
-                  className="flex min-h-[10px] flex-col items-start items-end bg-primary/20 p-1 text-card-foreground shadow-sm"
+                  className="flex min-h-[10px] flex-col items-start items-end border dark:bg-primary/20 p-1 text-card-foreground shadow-sm"
                 >
                   <div className="px-4 pt-1">{k.content}</div>
                   <button
