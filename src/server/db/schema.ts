@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { relations, sql, type InferSelectModel } from "drizzle-orm";
 import {
   index,
   integer,
@@ -56,6 +56,8 @@ export const blobs = createTable("blob", {
   parentId: integer("parentId"),
   kids: varchar("kids", { length: 500 }), //[kid_id_1, kid_id_2, kid_id_3, ...]
 });
+
+export type BlobType = InferSelectModel<typeof blobs>;
 export const blobRelations = relations(blobs, ({ one }) => ({
   user: one(users, { fields: [blobs.userId], references: [users.id] }),
 }));

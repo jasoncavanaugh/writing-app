@@ -6,6 +6,7 @@ import { type AppType } from "next/app";
 import { api } from "~/utils/api";
 
 import "~/styles/globals.css";
+import { ThemeProvider } from "next-themes";
 
 const MyApp: AppType<{ session: Session | null }> = ({
   Component,
@@ -13,9 +14,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
 }) => {
   return (
     <SessionProvider session={session}>
-      <div className={GeistSans.className}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <style jsx global>{`
+          html {
+            font-family: Georgia;
+          }
+        `}</style>
         <Component {...pageProps} />
-      </div>
+      </ThemeProvider>
     </SessionProvider>
   );
 };
