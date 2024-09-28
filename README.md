@@ -1,29 +1,16 @@
-# Create T3 App
+# Writing App
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A while back, I started writing my ideas in WhatsApp in a chat with myself. 
+I found it easier to write in WhatsApp than in a typical word processor because for some reason it felt less "serious". 
+I could just write my ideas down and each of them would be their own little speech bubble. 
+I wouldn't feel as much pressure for each speech bubble to logically follow another, or that they would all cohere into something...coherent. 
+It kinda felt like I was talking to a friend over a texting app.
 
-## What's next? How do I make an app with this?
+The trouble is that WhatsApp isn't exactly designed for this sort of thing. 
+While you can reply to a previous message, there wasn't a way to logically organize any of it. 
+So one day, I would have a string of thoughts about _Dazed and Confused_ after having watched the movie for the first time, and the next I would be talking about whether human relationships were just value transactions. And if at any point I wanted to re-read my thoughts on a particular topic and perhaps refine them into something more, there was no easy way to find my messages other than just searching for them.
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+So I decided it would be great if I had something that provided me the same functionality as writing to myself
+on WhatsApp, but where I could also group my ideas together. I thought the computer file system probably made the most sense, where a file would correspond to a speech bubble, and a directory would correspond to a grouping of speech bubbles. 
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
-
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
-
-## Learn More
-
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
-
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+This app is a small proof of concept of that idea. 
