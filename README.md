@@ -4,7 +4,7 @@ A while back, I started writing my ideas in WhatsApp in a chat with myself.
 I found it easier to write in WhatsApp than in a typical word processor because for some reason it felt less "serious". 
 I could just write my ideas down and each of them would be their own little speech bubble. 
 I wouldn't feel as much pressure for each speech bubble to logically follow another, or that they would all cohere into something...coherent. 
-It kinda felt like I was talking to a friend over a texting app.
+It kinda felt like I was just talking to a friend over a texting app.
 
 The trouble is that WhatsApp isn't exactly designed for this sort of thing. 
 While you can reply to a previous message, there wasn't a way to logically organize any of it. 
