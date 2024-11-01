@@ -14,10 +14,10 @@ export const blobRouter = createTRPCRouter({
     return user_with_blobs?.blobs ?? [];
   }),
   delete_blob: protectedProcedure
-  .input(z.object({ id: z.number() }))
-  .mutation(async ({ ctx, input }) => {
-    await ctx.db.delete(blobs);
-  }),
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(blobs);
+    }),
   create_blob: protectedProcedure
     .input(
       z.object({
@@ -27,7 +27,6 @@ export const blobRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      console.log("in", input);
       const ret = await ctx.db
         .insert(blobs)
         .values({
@@ -43,52 +42,23 @@ export const blobRouter = createTRPCRouter({
       if (ret.length === 0) {
         throw new Error("Error inserting");
       }
-      const persistedId = ret[0]?.persisted_id!!;
-      const parentId = input.parentId;
-      const parentBlob = await ctx.db.query.blobs.findFirst({
-        where: (blob, { eq }) => eq(blob.id, parentId),
+      const persisted_id = ret[0]?.persisted_id!!;
+      const parent_id = input.parentId;
+      const parent_blob = await ctx.db.query.blobs.findFirst({
+        where: (blob, { eq }) => eq(blob.id, parent_id),
       });
-      if (!parentBlob) {
+      if (!parent_blob) {
         return;
       }
-      const kidsArr = parentBlob.kids?.split(",") ?? [];
-      kidsArr.push(persistedId.toString());
+      const kidsArr = parent_blob.kids?.split(",") ?? [];
+      kidsArr.push(persisted_id.toString());
       await ctx.db
         .insert(blobs)
-        .values({ ...parentBlob, kids: kidsArr.join(",") })
+        .values({ ...parent_blob, kids: kidsArr.join(",") })
         .onConflictDoUpdate({
           target: blobs.id,
-          set: { kids: kidsArr.join(",") }
+          set: { kids: kidsArr.join(",") },
         });
+      return persisted_id;
     }),
-  /*
-  hello: publicProcedure
-    .input(z.object({ text: z.string() }))
-    .query(({ input }) => {
-      return {
-        greeting: `Hello ${input.text}`,
-      };
-    }),
-
-  create: protectedProcedure
-    .input(z.object({ name: z.string().min(1) }))
-    .mutation(async ({ ctx, input }) => {
-      await ctx.db.insert(posts).values({
-        name: input.name,
-        createdById: ctx.session.user.id,
-      });
-    }),
-
-  getLatest: publicProcedure.query(async ({ ctx }) => {
-    const post = await ctx.db.query.posts.findFirst({
-      orderBy: (posts, { desc }) => [desc(posts.createdAt)],
-    });
-
-    return post ?? null;
-  }),
-
-  getSecretMessage: protectedProcedure.query(() => {
-    return "you can now see this secret message!";
-  }),
-*/
 });

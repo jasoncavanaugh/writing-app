@@ -1,28 +1,16 @@
 import { ChevronRightIcon, SendHorizonalIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
-import { z } from "zod";
+import { ElementRef, useEffect, useRef, useState } from "react";
 import Layout from "~/components/Layout";
 import { Spinner } from "~/components/Spinner";
 import {
   Breadcrumb,
-  BreadcrumbEllipsis,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { Label } from "~/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
 import { Textarea } from "~/components/ui/textarea";
 import { SIGN_IN_ROUTE } from "~/lib/types";
 import { getServerAuthSession } from "~/server/auth";
@@ -40,11 +28,56 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 export default function Dashboard() {
   const session = useSession();
   const router = useRouter();
+  const text_area_ref = useRef<ElementRef<"textarea">>(null);
   const blobs_qry = api.blob.get_blobs_for_user.useQuery();
+  const api_utils = api.useUtils();
   const create_blob_mtn = api.blob.create_blob.useMutation({
-    onSuccess: () => {
-      blobs_qry.refetch();
+    onMutate: async (blob_to_be_created) => {
+      // Cancel outgoing fetches (so they don't overwrite our optimistic update)
+      await api_utils.blob.get_blobs_for_user.cancel();
       set_content("");
+      // Get the data from the queryCache
+      const prev_data = api_utils.blob.get_blobs_for_user.getData();
+      if (!prev_data) {
+        console.log("'prev_data' is undefined");
+        return { prev_data: [] };
+      }
+      // Optimistically update the data with our new blob
+      api_utils.blob.get_blobs_for_user.setData(undefined, (old_blobs) => {
+        if (!old_blobs) {
+          console.log("'old_blobs' is undefined");
+          return [];
+        }
+        const parent_blob = old_blobs.find(
+          (blob) => blob.id === blob_to_be_created.parentId,
+        );
+        if (!parent_blob) {
+          throw new Error("'parent_blob' is undefined");
+        }
+        let rand_id = Math.floor(Math.random() * 10_000);
+        while (old_blobs.find((b) => b.id === rand_id)) {
+          rand_id = Math.floor(Math.random() * 10_000);
+        }
+        const today = new Date();
+        const new_blobs = [...old_blobs];
+        new_blobs.push({
+          ...blob_to_be_created,
+          id: rand_id,
+          createdAt: today,
+          updatedAt: today,
+          userId: session.data?.user.id ?? "",
+          kids: null,
+        });
+        text_area_ref.current?.focus();
+        return new_blobs;
+      });
+    },
+    onError: (err, _, ctx) => {
+      console.error(err);
+      api_utils.blob.get_blobs_for_user.setData(undefined, ctx?.prev_data);
+    },
+    onSettled: () => {
+      api_utils.blob.get_blobs_for_user.invalidate();
     },
   });
   const delete_blob_mtn = api.blob.delete_blob.useMutation();
@@ -93,7 +126,7 @@ export default function Dashboard() {
               return (
                 <li
                   key={k.id}
-                  className="flex min-h-[10px] flex-col items-start items-end border dark:bg-primary/20 p-1 text-card-foreground shadow-sm"
+                  className="flex min-h-[10px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
                 >
                   <div className="px-4 pt-1">{k.content}</div>
                   <button
@@ -110,7 +143,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-end gap-2">
           <Textarea
-            disabled={create_blob_mtn.status === "pending"}
+            ref={text_area_ref}
             className="resize-none text-base"
             value={content}
             onChange={(e) => set_content(e.target.value)}
@@ -153,11 +186,12 @@ function Breadcrumbs({
   const bc = [];
   let pid: any =
     blob_parent_id === "root" ? get_root_id(blobs) : parseInt(blob_parent_id);
+  let idx = 0;
   while (pid !== null) {
     console.log("pid", pid);
     const c = blobs.find((b) => b.id === pid);
     bc.push(
-      <BreadcrumbItem>
+      <BreadcrumbItem key={idx++}>
         <BreadcrumbLink href={`/dashboard/${c?.id}`}>
           {get_label(c?.content ?? "")}
         </BreadcrumbLink>
@@ -165,11 +199,11 @@ function Breadcrumbs({
     );
     pid = c?.parentId;
     if (pid !== null) {
-      bc.push(<BreadcrumbSeparator />);
+      bc.push(<BreadcrumbSeparator key={idx++} />);
     }
   }
   bc.push(
-    <BreadcrumbItem>
+    <BreadcrumbItem key="root">
       <BreadcrumbLink href="/dashboard/root">Root</BreadcrumbLink>
     </BreadcrumbItem>,
   );
@@ -182,7 +216,6 @@ function Breadcrumbs({
 }
 
 function get_root_id(blobs: Array<BlobType>) {
-  console.log("blobs", blobs);
   return blobs.find((b) => b.parentId === null)?.id ?? null;
 }
 
@@ -192,11 +225,6 @@ function get_blob_kids(blobs: Array<BlobType>, blob_parent_id: string) {
   return blobs
     .filter((b) => b.parentId === pid)
     .sort((a, b) => (a.order < b.order ? -1 : 1));
-  // if (!parent_blob || !parent_blob.kids) {
-  //   return [];
-  // }
-  // const kidIds = parent_blob.kids.split(",").map((k) => parseInt(k));
-  // return blobs.filter((b) => kidIds.some((k) => k === b.id));
 }
 
 function get_label(content: string) {
