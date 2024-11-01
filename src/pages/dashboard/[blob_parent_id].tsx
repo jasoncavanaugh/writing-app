@@ -167,10 +167,13 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 pb-1 pl-4">
                     <EditDialogAndButton content={k.content ?? ""} id={k.id} />
                     <Link href={`/dashboard/${k.id}`}>
-                      <button className="flex items-center opacity-40 hover:opacity-100">
+                      <Button
+                        variant="ghost"
+                        className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+                      >
                         {k.kids?.split(",").length ?? ""}
                         <ChevronRightIcon className="h-4 w-4 pt-1" />
-                      </button>
+                      </Button>
                     </Link>
                   </div>
                 </li>
