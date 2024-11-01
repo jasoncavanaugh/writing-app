@@ -18,6 +18,7 @@ import { BlobType } from "~/server/db/schema";
 import { api } from "~/utils/api";
 import { GetServerSideProps } from "next/types";
 import { useRouter } from "next/router";
+import Link from "next/link";
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerAuthSession(ctx);
@@ -129,13 +130,15 @@ export default function Dashboard() {
                   className="flex min-h-[10px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
                 >
                   <div className="px-4 pt-1">{k.content}</div>
-                  <button
-                    onClick={() => router.push(`/dashboard/${k.id}`)}
-                    className="flex items-center opacity-40 hover:opacity-100"
-                  >
-                    {k.kids?.split(",").length ?? ""}
-                    <ChevronRightIcon className="h-4 w-4 pt-1" />
-                  </button>
+                  <Link href={`/dashboard/${k.id}`}>
+                    <button
+                      // onClick={() => router.push(`/dashboard/${k.id}`)}
+                      className="flex items-center opacity-40 hover:opacity-100"
+                    >
+                      {k.kids?.split(",").length ?? ""}
+                      <ChevronRightIcon className="h-4 w-4 pt-1" />
+                    </button>
+                  </Link>
                 </li>
               );
             })}
@@ -192,8 +195,10 @@ function Breadcrumbs({
     const c = blobs.find((b) => b.id === pid);
     bc.push(
       <BreadcrumbItem key={idx++}>
-        <BreadcrumbLink href={`/dashboard/${c?.id}`}>
-          {get_label(c?.content ?? "")}
+        <BreadcrumbLink asChild>
+          <Link href={`/dashboard/${c?.id}`}>
+            {get_label(c?.content ?? "")}
+          </Link>
         </BreadcrumbLink>
       </BreadcrumbItem>,
     );
@@ -204,7 +209,9 @@ function Breadcrumbs({
   }
   bc.push(
     <BreadcrumbItem key="root">
-      <BreadcrumbLink href="/dashboard/root">Root</BreadcrumbLink>
+      <BreadcrumbLink asChild>
+        <Link href="/dashboard/root">Root</Link>
+      </BreadcrumbLink>
     </BreadcrumbItem>,
   );
   bc.reverse();
