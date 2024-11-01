@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { db } from "~/server/db";
 import { blobs } from "~/server/db/schema";
+import { eq } from "drizzle-orm";
 
 export const blobRouter = createTRPCRouter({
   get_blobs_for_user: protectedProcedure.query(async ({ ctx }) => {
@@ -16,7 +17,7 @@ export const blobRouter = createTRPCRouter({
   delete_blob: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(blobs);
+      // await ctx.db.delete(blobs);
     }),
   create_blob: protectedProcedure
     .input(
@@ -60,5 +61,18 @@ export const blobRouter = createTRPCRouter({
           set: { kids: kidsArr.join(",") },
         });
       return persisted_id;
+    }),
+  edit_blob_content: protectedProcedure
+    .input(
+      z.object({
+        id: z.number(),
+        content: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(blobs)
+        .set({ content: input.content })
+        .where(eq(blobs.id, input.id));
     }),
 });

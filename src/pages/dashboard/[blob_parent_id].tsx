@@ -1,6 +1,15 @@
-import { ChevronRightIcon, SendHorizonalIcon } from "lucide-react";
+import { ChevronRightIcon, Edit, Edit2, SendHorizonalIcon } from "lucide-react";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useSession } from "next-auth/react";
-import { ElementRef, useEffect, useRef, useState } from "react";
+import {
+  ElementRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Layout from "~/components/Layout";
 import { Spinner } from "~/components/Spinner";
 import {
@@ -19,7 +28,32 @@ import { api } from "~/utils/api";
 import { GetServerSideProps } from "next/types";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from "~/components/ui/dialog";
+import { cn } from "~/lib/utils";
 
+export const RADIX_MODAL_CONTENT_CLASSES = cn(
+  "z-50 shadow-lg duration-500",
+  "data-[state=open]:animate-in",
+  "data-[state=closed]:animate-out",
+  "data-[state=closed]:fade-out-0",
+  "data-[state=open]:fade-in-0",
+  "data-[state=closed]:zoom-out-95",
+  "data-[state=open]:zoom-in-95",
+  "data-[state=closed]:slide-out-to-left-1/2",
+  "data-[state=closed]:slide-out-to-top-[48%]",
+  "data-[state=open]:slide-in-from-left-1/2",
+  "data-[state=open]:slide-in-from-top-[48%]",
+);
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerAuthSession(ctx);
   return {
@@ -127,18 +161,18 @@ export default function Dashboard() {
               return (
                 <li
                   key={k.id}
-                  className="flex min-h-[10px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
+                  className="flex min-h-[10px] min-w-[60px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
                 >
                   <div className="px-4 pt-1">{k.content}</div>
-                  <Link href={`/dashboard/${k.id}`}>
-                    <button
-                      // onClick={() => router.push(`/dashboard/${k.id}`)}
-                      className="flex items-center opacity-40 hover:opacity-100"
-                    >
-                      {k.kids?.split(",").length ?? ""}
-                      <ChevronRightIcon className="h-4 w-4 pt-1" />
-                    </button>
-                  </Link>
+                  <div className="flex items-center gap-2 pb-1 pl-4">
+                    <EditDialogAndButton content={k.content ?? ""} id={k.id} />
+                    <Link href={`/dashboard/${k.id}`}>
+                      <button className="flex items-center opacity-40 hover:opacity-100">
+                        {k.kids?.split(",").length ?? ""}
+                        <ChevronRightIcon className="h-4 w-4 pt-1" />
+                      </button>
+                    </Link>
+                  </div>
                 </li>
               );
             })}
@@ -159,7 +193,6 @@ export default function Dashboard() {
                 create_blob_mtn.status === "pending"
               }
               onClick={() => {
-                // delete_blob_mtn.mutate({ id: 0 });
                 create_blob_mtn.mutate({
                   content: content,
                   order: blob_kids.length,
@@ -187,11 +220,10 @@ function Breadcrumbs({
   blob_parent_id: string;
 }) {
   const bc = [];
-  let pid: any =
+  let pid: number | null | undefined =
     blob_parent_id === "root" ? get_root_id(blobs) : parseInt(blob_parent_id);
   let idx = 0;
   while (pid !== null) {
-    console.log("pid", pid);
     const c = blobs.find((b) => b.id === pid);
     bc.push(
       <BreadcrumbItem key={idx++}>
@@ -240,4 +272,119 @@ function get_label(content: string) {
   } else {
     return content;
   }
+}
+
+export function EditDialogAndButton({
+  id,
+  content,
+}: {
+  id: number;
+  content: string;
+}) {
+  const [open, set_open] = useState(false);
+  const [edited_content, set_edited_content] = useState(content);
+  const api_utils = api.useUtils();
+  const edit_blob_mtn = api.blob.edit_blob_content.useMutation({
+    onSuccess: () => {
+      api_utils.blob.get_blobs_for_user.invalidate();
+      set_open(false);
+    },
+  });
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(new_open) => {
+        if (new_open) {
+          set_edited_content(content);
+        }
+        set_open(new_open);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-6 p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          title="Edit"
+        >
+          <Edit2 className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogPortal>
+        <DialogOverlay className="background-blur bg-background/80" />
+        <DialogPrimitive.Content
+          className={cn(
+            RADIX_MODAL_CONTENT_CLASSES,
+            "fixed left-1/2 top-0 flex w-full -translate-x-1/2 flex-col gap-4 border bg-background",
+            "p-4 md:top-1/2 md:w-[40rem] md:-translate-y-1/2 lg:p-8",
+          )}
+        >
+          <VisuallyHidden.Root>
+            <DialogTitle />
+          </VisuallyHidden.Root>
+          <VisuallyHidden.Root>
+            <DialogDescription />
+          </VisuallyHidden.Root>
+          <EditContentTextArea
+            edited_content={edited_content}
+            set_edited_content={set_edited_content}
+          />
+          <DialogFooter className="flex justify-end gap-3">
+            <DialogClose asChild>
+              <Button className="w-20" variant="secondary">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              className="w-20"
+              disabled={
+                edited_content.trim().length === 0 ||
+                edited_content.trim().length > 500 ||
+                edited_content.trim() === content
+              }
+              onClick={() => {
+                edit_blob_mtn.mutate({
+                  id: id,
+                  content: edited_content.trim(),
+                });
+              }}
+            >
+              {edit_blob_mtn.status === "pending" ? (
+                <Spinner className="h-4 w-4 animate-spin-fast border-2 text-white" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
+  );
+}
+
+export function EditContentTextArea({
+  edited_content,
+  set_edited_content,
+}: {
+  edited_content: string;
+  set_edited_content: (c: string) => void;
+}) {
+  const text_area_ref = useRef<ElementRef<"textarea">>(null);
+  useEffect(() => {
+    if (text_area_ref.current) {
+      text_area_ref.current.focus();
+      text_area_ref.current.setSelectionRange(
+        edited_content.length,
+        edited_content.length,
+      );
+    }
+  }, [text_area_ref.current === null]);
+  return (
+    <Textarea
+      ref={text_area_ref}
+      className="h-[15rem] resize-none text-base md:h-[10rem]"
+      value={edited_content}
+      autoFocus
+      onChange={(e) => set_edited_content(e.target.value)}
+    />
+  );
 }
