@@ -1,4 +1,10 @@
-import { ChevronRightIcon, Edit, Edit2, SendHorizonalIcon } from "lucide-react";
+import {
+  ChevronRightIcon,
+  Copy,
+  Edit,
+  Edit2,
+  SendHorizonalIcon,
+} from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -165,6 +171,15 @@ export default function Dashboard() {
                 >
                   <div className="px-4 pt-1">{k.content}</div>
                   <div className="flex items-center gap-2 pb-1 pl-4">
+                    <Button
+                      variant="ghost"
+                      className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+                      onClick={() => {
+                        navigator.clipboard.writeText(k.content?.trim() ?? "");
+                      }}
+                    >
+                      <Copy className="h-4 w-4 pt-1" />
+                    </Button>
                     <EditDialogAndButton content={k.content ?? ""} id={k.id} />
                     <Link href={`/dashboard/${k.id}`}>
                       <Button
