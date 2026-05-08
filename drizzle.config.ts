@@ -8,5 +8,5 @@ export default {
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-  tablesFilter: ["writing-app_*"],
+  tablesFilter: ["zettelkasten_*"],
 } satisfies Config;
