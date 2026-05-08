@@ -4,6 +4,7 @@ import {
   Edit,
   Edit2,
   SendHorizonalIcon,
+  Trash2,
 } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
@@ -118,14 +119,14 @@ export default function Dashboard() {
       api_utils.blob.get_blobs_for_user.setData(undefined, ctx?.prev_data);
     },
     onSettled: () => {
-      api_utils.blob.get_blobs_for_user.invalidate();
+      void api_utils.blob.get_blobs_for_user.invalidate();
     },
   });
   const delete_blob_mtn = api.blob.delete_blob.useMutation();
   const [content, set_content] = useState("");
   useEffect(() => {
     if (session.status === "unauthenticated") {
-      router.push(SIGN_IN_ROUTE);
+      void router.push(SIGN_IN_ROUTE);
     }
   }, [session.status]);
 
@@ -136,7 +137,7 @@ export default function Dashboard() {
         order: 0,
         parentId: null,
       });
-      blobs_qry.refetch();
+      void blobs_qry.refetch();
     }
   }, [blobs_qry.status]);
 
@@ -175,12 +176,15 @@ export default function Dashboard() {
                       variant="ghost"
                       className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
                       onClick={() => {
-                        navigator.clipboard.writeText(k.content?.trim() ?? "");
+                        void navigator.clipboard.writeText(
+                          k.content?.trim() ?? "",
+                        );
                       }}
                     >
                       <Copy className="h-4 w-4 pt-1" />
                     </Button>
                     <EditDialogAndButton content={k.content ?? ""} id={k.id} />
+                    <DeleteDialogAndButton id={k.id} blobs={blobs_qry.data} />
                     <Link href={`/dashboard/${k.id}`}>
                       <Button
                         variant="ghost"
@@ -304,7 +308,7 @@ export function EditDialogAndButton({
   const api_utils = api.useUtils();
   const edit_blob_mtn = api.blob.edit_blob_content.useMutation({
     onSuccess: () => {
-      api_utils.blob.get_blobs_for_user.invalidate();
+      void api_utils.blob.get_blobs_for_user.invalidate();
       set_open(false);
     },
   });
@@ -370,6 +374,97 @@ export function EditDialogAndButton({
                 <Spinner className="h-4 w-4 animate-spin-fast border-2 text-white" />
               ) : (
                 "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
+  );
+}
+
+function get_subtree_stats(
+  blobs: Array<BlobType>,
+  id: number,
+): { descendants: number; layers: number } {
+  let descendants = 0;
+  let layers = 0;
+  let current = [id];
+  while (true) {
+    const next = blobs
+      .filter((b) => b.parentId !== null && current.includes(b.parentId))
+      .map((b) => b.id);
+    if (next.length === 0) break;
+    descendants += next.length;
+    layers++;
+    current = next;
+  }
+  return { descendants, layers };
+}
+
+export function DeleteDialogAndButton({
+  id,
+  blobs,
+}: {
+  id: number;
+  blobs: Array<BlobType>;
+}) {
+  const [open, set_open] = useState(false);
+  const api_utils = api.useUtils();
+  const delete_blob_mtn = api.blob.delete_blob.useMutation({
+    onSuccess: () => {
+      void api_utils.blob.get_blobs_for_user.invalidate();
+      set_open(false);
+    },
+  });
+  const { descendants, layers } = get_subtree_stats(blobs, id);
+  return (
+    <Dialog open={open} onOpenChange={set_open}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-6 p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          title="Delete"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </DialogTrigger>
+      <DialogPortal>
+        <DialogOverlay className="background-blur bg-background/80" />
+        <DialogPrimitive.Content
+          className={cn(
+            RADIX_MODAL_CONTENT_CLASSES,
+            "fixed left-1/2 top-0 flex w-full -translate-x-1/2 flex-col gap-4 border bg-background",
+            "p-4 md:top-1/2 md:w-[40rem] md:-translate-y-1/2 lg:p-8",
+          )}
+        >
+          <VisuallyHidden.Root>
+            <DialogTitle />
+          </VisuallyHidden.Root>
+          <VisuallyHidden.Root>
+            <DialogDescription />
+          </VisuallyHidden.Root>
+          <p className="text-base">
+            {descendants > 0
+              ? `Are you sure you want to delete? This operation will delete ${descendants} ${descendants === 1 ? "child" : "children"} across ${layers} ${layers === 1 ? "layer" : "layers"}.`
+              : "Are you sure you want to delete this blob?"}
+          </p>
+          <DialogFooter className="flex justify-end gap-3">
+            <DialogClose asChild>
+              <Button className="w-20" variant="secondary">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              className="w-20"
+              variant="destructive"
+              disabled={delete_blob_mtn.status === "pending"}
+              onClick={() => delete_blob_mtn.mutate({ id })}
+            >
+              {delete_blob_mtn.status === "pending" ? (
+                <Spinner className="h-4 w-4 animate-spin-fast border-2 text-white" />
+              ) : (
+                "Delete"
               )}
             </Button>
           </DialogFooter>
