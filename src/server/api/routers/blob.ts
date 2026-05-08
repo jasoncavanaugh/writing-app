@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { db } from "~/server/db";
 import { blobs } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export const blobRouter = createTRPCRouter({
   get_blobs_for_user: protectedProcedure.query(async ({ ctx }) => {
@@ -17,7 +17,36 @@ export const blobRouter = createTRPCRouter({
   delete_blob: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
-      // await ctx.db.delete(blobs);
+      const all_blobs = await ctx.db.query.blobs.findMany({
+        where: (blob, { eq }) => eq(blob.userId, ctx.session.user.id),
+      });
+
+      // Remove blob from parent's kids list
+      const blob_to_delete = all_blobs.find((b) => b.id === input.id);
+      if (blob_to_delete?.parentId) {
+        const parent = all_blobs.find((b) => b.id === blob_to_delete.parentId);
+        if (parent) {
+          const new_kids = (parent.kids?.split(",") ?? [])
+            .filter((k) => k !== input.id.toString())
+            .join(",");
+          await ctx.db
+            .update(blobs)
+            .set({ kids: new_kids || null })
+            .where(eq(blobs.id, parent.id));
+        }
+      }
+
+      // Collect all descendant IDs via BFS
+      const ids_to_delete: number[] = [];
+      let current = [input.id];
+      while (current.length > 0) {
+        ids_to_delete.push(...current);
+        current = all_blobs
+          .filter((b) => b.parentId !== null && current.includes(b.parentId))
+          .map((b) => b.id);
+      }
+
+      await ctx.db.delete(blobs).where(inArray(blobs.id, ids_to_delete));
     }),
   create_blob: protectedProcedure
     .input(
