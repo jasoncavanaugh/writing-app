@@ -1,4 +1,4 @@
-# Writing App
+# Zettelkasten
 
 A while back, I started writing my ideas in WhatsApp in a chat with myself. 
 I found it easier to write in WhatsApp than in a typical word processor because for some reason it felt less "serious". 

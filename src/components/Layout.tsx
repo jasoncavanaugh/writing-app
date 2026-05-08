@@ -21,7 +21,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       >
         <div className="flex gap-2">
           <ScrollIcon />
-          <h1 className="text-xl font-bold tracking-tight">Writing App</h1>
+          <h1 className="text-xl font-bold tracking-tight">Zettelkasten</h1>
         </div>
         <div className="flex items-center gap-4">
           <ModeToggle />
