@@ -2,12 +2,27 @@ import {
   ChevronRightIcon,
   Copy,
   Edit2,
+  GripVertical,
   SendHorizonalIcon,
   Trash2,
 } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
-
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import Layout from "~/components/Layout";
@@ -53,30 +68,28 @@ export const RADIX_MODAL_CONTENT_CLASSES = cn(
   "data-[state=open]:slide-in-from-left-1/2",
   "data-[state=open]:slide-in-from-top-[48%]",
 );
+
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const session = await getServerAuthSession(ctx);
-  return {
-    props: { session },
-  };
+  return { props: { session } };
 };
+
 export default function Dashboard() {
   const session = useSession();
   const router = useRouter();
   const text_area_ref = useRef<HTMLTextAreaElement>(null);
   const blobs_qry = api.blob.get_blobs_for_user.useQuery();
   const api_utils = api.useUtils();
+
   const create_blob_mtn = api.blob.create_blob.useMutation({
     onMutate: async (blob_to_be_created) => {
-      // Cancel outgoing fetches (so they don't overwrite our optimistic update)
       await api_utils.blob.get_blobs_for_user.cancel();
       set_content("");
-      // Get the data from the queryCache
       const prev_data = api_utils.blob.get_blobs_for_user.getData();
       if (!prev_data) {
         console.log("'prev_data' is undefined");
         return { prev_data: [] };
       }
-      // Optimistically update the data with our new blob
       api_utils.blob.get_blobs_for_user.setData(undefined, (old_blobs) => {
         if (!old_blobs) {
           console.log("'old_blobs' is undefined");
@@ -113,7 +126,34 @@ export default function Dashboard() {
       void api_utils.blob.get_blobs_for_user.invalidate();
     },
   });
+
+  const reorder_blobs_mtn = api.blob.reorder_blobs.useMutation({
+    onMutate: async (ordered_ids) => {
+      await api_utils.blob.get_blobs_for_user.cancel();
+      const prev_data = api_utils.blob.get_blobs_for_user.getData();
+      api_utils.blob.get_blobs_for_user.setData(undefined, (old_blobs) => {
+        if (!old_blobs) return [];
+        return old_blobs.map((b) => {
+          const new_order = ordered_ids.indexOf(b.id);
+          return new_order !== -1 ? { ...b, order: new_order } : b;
+        });
+      });
+      return { prev_data };
+    },
+    onError: (_, __, ctx) => {
+      api_utils.blob.get_blobs_for_user.setData(undefined, ctx?.prev_data);
+    },
+    onSettled: () => {
+      void api_utils.blob.get_blobs_for_user.invalidate();
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
   const [content, set_content] = useState("");
+
   useEffect(() => {
     if (session.status === "unauthenticated") {
       void router.push(SIGN_IN_ROUTE);
@@ -122,11 +162,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (blobs_qry.status === "success" && blobs_qry.data.length === 0) {
-      create_blob_mtn.mutate({
-        content: "",
-        order: 0,
-        parentId: null,
-      });
+      create_blob_mtn.mutate({ content: "", order: 0, parentId: null });
       void blobs_qry.refetch();
     }
   }, [blobs_qry.status]);
@@ -144,7 +180,18 @@ export default function Dashboard() {
       </div>
     );
   }
+
   const blob_kids = get_blob_kids(blobs_qry.data, router.query.blob_parent_id);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const old_index = blob_kids.findIndex((b) => b.id === active.id);
+    const new_index = blob_kids.findIndex((b) => b.id === over.id);
+    const reordered = arrayMove(blob_kids, old_index, new_index);
+    reorder_blobs_mtn.mutate(reordered.map((b) => b.id));
+  }
+
   return (
     <Layout>
       <div className="flex flex-col gap-2 px-8 pb-4">
@@ -153,42 +200,26 @@ export default function Dashboard() {
           blob_parent_id={router.query.blob_parent_id}
         />
         <div className="grow">
-          <ul className="flex flex-wrap gap-2">
-            {blob_kids.map((k) => {
-              return (
-                <li
-                  key={k.id}
-                  className="flex min-h-[10px] min-w-[60px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
-                >
-                  <div className="px-4 pt-1">{k.content}</div>
-                  <div className="flex items-center gap-2 pb-1 pl-4">
-                    <Button
-                      variant="ghost"
-                      className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(
-                          k.content?.trim() ?? "",
-                        );
-                      }}
-                    >
-                      <Copy className="h-4 w-4 pt-1" />
-                    </Button>
-                    <EditDialogAndButton content={k.content ?? ""} id={k.id} />
-                    <DeleteDialogAndButton id={k.id} blobs={blobs_qry.data} />
-                    <Link href={`/dashboard/${k.id}`}>
-                      <Button
-                        variant="ghost"
-                        className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
-                      >
-                        {blobs_qry.data.filter((b) => b.parentId === k.id).length || ""}
-                        <ChevronRightIcon className="h-4 w-4 pt-1" />
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={blob_kids.map((b) => b.id)}
+              strategy={rectSortingStrategy}
+            >
+              <ul className="flex flex-wrap gap-2">
+                {blob_kids.map((k) => (
+                  <SortableBlob
+                    key={k.id}
+                    blob={k}
+                    all_blobs={blobs_qry.data}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         </div>
         <div className="flex items-end gap-2">
           <Textarea
@@ -221,6 +252,62 @@ export default function Dashboard() {
         </div>
       </div>
     </Layout>
+  );
+}
+
+function SortableBlob({
+  blob,
+  all_blobs,
+}: {
+  blob: BlobType;
+  all_blobs: Array<BlobType>;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: blob.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex min-h-[10px] min-w-[60px] flex-col border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
+    >
+      <div className="flex items-start gap-1 pt-1">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab touch-none opacity-30 hover:opacity-70 active:cursor-grabbing"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="pr-2">{blob.content}</div>
+      </div>
+      <div className="flex items-center gap-2 pb-1 pl-4">
+        <Button
+          variant="ghost"
+          className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          onClick={() => {
+            void navigator.clipboard.writeText(blob.content?.trim() ?? "");
+          }}
+        >
+          <Copy className="h-4 w-4 pt-1" />
+        </Button>
+        <EditDialogAndButton content={blob.content ?? ""} id={blob.id} />
+        <DeleteDialogAndButton id={blob.id} blobs={all_blobs} />
+        <Link href={`/dashboard/${blob.id}`}>
+          <Button
+            variant="ghost"
+            className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          >
+            {all_blobs.filter((b) => b.parentId === blob.id).length || ""}
+            <ChevronRightIcon className="h-4 w-4 pt-1" />
+          </Button>
+        </Link>
+      </div>
+    </li>
   );
 }
 
@@ -306,9 +393,7 @@ export function EditDialogAndButton({
     <Dialog
       open={open}
       onOpenChange={(new_open) => {
-        if (new_open) {
-          set_edited_content(content);
-        }
+        if (new_open) set_edited_content(content);
         set_open(new_open);
       }}
     >
@@ -354,10 +439,7 @@ export function EditDialogAndButton({
                 edited_content.trim() === content
               }
               onClick={() => {
-                edit_blob_mtn.mutate({
-                  id: id,
-                  content: edited_content.trim(),
-                });
+                edit_blob_mtn.mutate({ id, content: edited_content.trim() });
               }}
             >
               {edit_blob_mtn.status === "pending" ? (
