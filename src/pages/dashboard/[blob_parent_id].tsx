@@ -2,14 +2,26 @@ import {
   ChevronRightIcon,
   Copy,
   Edit2,
+  GripVertical,
   SendHorizonalIcon,
   Trash2,
 } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
-
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import Layout from "~/components/Layout";
 import { Spinner } from "~/components/Spinner";
 import {
@@ -113,7 +125,35 @@ export default function Dashboard() {
       void api_utils.blob.get_blobs_for_user.invalidate();
     },
   });
+  const reorder_blobs_mtn = api.blob.reorder_blobs.useMutation({
+    onMutate: async (ordered_ids) => {
+      await api_utils.blob.get_blobs_for_user.cancel();
+      const prev_data = api_utils.blob.get_blobs_for_user.getData();
+      api_utils.blob.get_blobs_for_user.setData(undefined, (old_blobs) => {
+        if (!old_blobs) return [];
+        return old_blobs.map((b) => {
+          const new_order = ordered_ids.indexOf(b.id);
+          return new_order !== -1 ? { ...b, order: new_order } : b;
+        });
+      });
+      return { prev_data };
+    },
+    onError: (_, __, ctx) => {
+      api_utils.blob.get_blobs_for_user.setData(undefined, ctx?.prev_data);
+    },
+    onSettled: () => {
+      void api_utils.blob.get_blobs_for_user.invalidate();
+    },
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  const [active_id, set_active_id] = useState<number | null>(null);
+  const [pending_order, set_pending_order] = useState<Array<BlobType> | null>(null);
   const [content, set_content] = useState("");
+
   useEffect(() => {
     if (session.status === "unauthenticated") {
       void router.push(SIGN_IN_ROUTE);
@@ -144,7 +184,34 @@ export default function Dashboard() {
       </div>
     );
   }
+
   const blob_kids = get_blob_kids(blobs_qry.data, router.query.blob_parent_id);
+  const displayed_kids = pending_order ?? blob_kids;
+
+  function handleDragStart(event: DragStartEvent) {
+    set_active_id(event.active.id as number);
+    set_pending_order(blob_kids);
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    set_pending_order((prev) => {
+      const items = prev ?? blob_kids;
+      const old_index = items.findIndex((b) => b.id === active.id);
+      const new_index = items.findIndex((b) => b.id === over.id);
+      return arrayMove(items, old_index, new_index);
+    });
+  }
+
+  function handleDragEnd(_event: DragEndEvent) {
+    if (pending_order) {
+      reorder_blobs_mtn.mutate(pending_order.map((b) => b.id));
+    }
+    set_active_id(null);
+    set_pending_order(null);
+  }
+
   return (
     <Layout>
       <div className="flex flex-col gap-2 px-8 pb-4">
@@ -153,42 +220,40 @@ export default function Dashboard() {
           blob_parent_id={router.query.blob_parent_id}
         />
         <div className="grow">
-          <ul className="flex flex-wrap gap-2">
-            {blob_kids.map((k) => {
-              return (
-                <li
-                  key={k.id}
-                  className="flex min-h-[10px] min-w-[60px] flex-col items-start items-end border p-1 text-card-foreground shadow-sm dark:bg-primary/20"
-                >
-                  <div className="px-4 pt-1">{k.content}</div>
-                  <div className="flex items-center gap-2 pb-1 pl-4">
-                    <Button
-                      variant="ghost"
-                      className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(
-                          k.content?.trim() ?? "",
-                        );
-                      }}
-                    >
-                      <Copy className="h-4 w-4 pt-1" />
-                    </Button>
-                    <EditDialogAndButton content={k.content ?? ""} id={k.id} />
-                    <DeleteDialogAndButton id={k.id} blobs={blobs_qry.data} />
-                    <Link href={`/dashboard/${k.id}`}>
-                      <Button
-                        variant="ghost"
-                        className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
-                      >
-                        {blobs_qry.data.filter((b) => b.parentId === k.id).length || ""}
-                        <ChevronRightIcon className="h-4 w-4 pt-1" />
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => {
+              set_active_id(null);
+              set_pending_order(null);
+            }}
+          >
+            <SortableContext
+              items={displayed_kids.map((b) => b.id)}
+              strategy={() => null}
+            >
+              <ul className="flex flex-wrap gap-2">
+                {displayed_kids.map((k) => (
+                  <SortableBlob
+                    key={k.id}
+                    blob={k}
+                    all_blobs={blobs_qry.data}
+                    is_dragging={k.id === active_id}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+            <DragOverlay modifiers={[snapCenterToCursor]}>
+              {active_id !== null ? (
+                <BlobCard
+                  blob={blobs_qry.data.find((b) => b.id === active_id)!}
+                  all_blobs={blobs_qry.data}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
         <div className="flex items-end gap-2">
           <Textarea
@@ -223,6 +288,87 @@ export default function Dashboard() {
     </Layout>
   );
 }
+
+function SortableBlob({
+  blob,
+  all_blobs,
+  is_dragging,
+}: {
+  blob: BlobType;
+  all_blobs: Array<BlobType>;
+  is_dragging: boolean;
+}) {
+  const { attributes, listeners, setNodeRef } = useSortable({ id: blob.id });
+  return (
+    <BlobCard
+      ref={setNodeRef}
+      blob={blob}
+      all_blobs={all_blobs}
+      drag_handle_props={{ attributes, listeners }}
+      className={is_dragging ? "opacity-40" : undefined}
+    />
+  );
+}
+
+type DragHandleProps = {
+  attributes: ReturnType<typeof useSortable>["attributes"];
+  listeners: ReturnType<typeof useSortable>["listeners"];
+};
+
+const BlobCard = forwardRef<
+  HTMLLIElement,
+  {
+    blob: BlobType;
+    all_blobs: Array<BlobType>;
+    drag_handle_props?: DragHandleProps;
+    className?: string;
+  }
+>(({ blob, all_blobs, drag_handle_props, className }, ref) => {
+  const child_count = all_blobs.filter((b) => b.parentId === blob.id).length;
+  return (
+    <li
+      ref={ref}
+      className={cn(
+        "flex min-h-[10px] min-w-[60px] flex-col border p-1 text-card-foreground shadow-sm dark:bg-primary/20",
+        className,
+      )}
+    >
+      <div className="flex items-start gap-1 px-2 pt-1">
+        {drag_handle_props && (
+          <button
+            {...drag_handle_props.attributes}
+            {...drag_handle_props.listeners}
+            className="shrink-0 cursor-grab touch-none opacity-30 hover:opacity-70 active:cursor-grabbing"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
+        <div className={drag_handle_props ? "" : "px-2"}>{blob.content}</div>
+      </div>
+      <div className="flex items-center gap-2 pb-1 pl-4">
+        <Button
+          variant="ghost"
+          className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          onClick={() => void navigator.clipboard.writeText(blob.content?.trim() ?? "")}
+        >
+          <Copy className="h-4 w-4 pt-1" />
+        </Button>
+        <EditDialogAndButton content={blob.content ?? ""} id={blob.id} />
+        <DeleteDialogAndButton id={blob.id} blobs={all_blobs} />
+        <Link href={`/dashboard/${blob.id}`}>
+          <Button
+            variant="ghost"
+            className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
+          >
+            {child_count || ""}
+            <ChevronRightIcon className="h-4 w-4 pt-1" />
+          </Button>
+        </Link>
+      </div>
+    </li>
+  );
+});
+BlobCard.displayName = "BlobCard";
 
 function Breadcrumbs({
   blobs,

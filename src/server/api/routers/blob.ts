@@ -55,6 +55,15 @@ export const blobRouter = createTRPCRouter({
       }
       return ret[0]!.persisted_id;
     }),
+  reorder_blobs: protectedProcedure
+    .input(z.array(z.number()))
+    .mutation(async ({ ctx, input }) => {
+      await Promise.all(
+        input.map((id, i) =>
+          ctx.db.update(blobs).set({ order: i }).where(eq(blobs.id, id)),
+        ),
+      );
+    }),
   edit_blob_content: protectedProcedure
     .input(
       z.object({
