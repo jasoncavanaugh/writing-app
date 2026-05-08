@@ -1,7 +1,6 @@
 import {
   ChevronRightIcon,
   Copy,
-  Edit,
   Edit2,
   SendHorizonalIcon,
   Trash2,
@@ -10,13 +9,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useSession } from "next-auth/react";
-import {
-  ElementRef,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import Layout from "~/components/Layout";
 import { Spinner } from "~/components/Spinner";
 import {
@@ -30,15 +23,14 @@ import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { SIGN_IN_ROUTE } from "~/lib/types";
 import { getServerAuthSession } from "~/server/auth";
-import { BlobType } from "~/server/db/schema";
+import type { BlobType } from "~/server/db/schema";
 import { api } from "~/utils/api";
-import { GetServerSideProps } from "next/types";
+import type { GetServerSideProps } from "next/types";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
   Dialog,
   DialogClose,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogOverlay,
@@ -70,7 +62,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 export default function Dashboard() {
   const session = useSession();
   const router = useRouter();
-  const text_area_ref = useRef<ElementRef<"textarea">>(null);
+  const text_area_ref = useRef<HTMLTextAreaElement>(null);
   const blobs_qry = api.blob.get_blobs_for_user.useQuery();
   const api_utils = api.useUtils();
   const create_blob_mtn = api.blob.create_blob.useMutation({
@@ -122,7 +114,6 @@ export default function Dashboard() {
       void api_utils.blob.get_blobs_for_user.invalidate();
     },
   });
-  const delete_blob_mtn = api.blob.delete_blob.useMutation();
   const [content, set_content] = useState("");
   useEffect(() => {
     if (session.status === "unauthenticated") {
@@ -481,7 +472,7 @@ export function EditContentTextArea({
   edited_content: string;
   set_edited_content: (c: string) => void;
 }) {
-  const text_area_ref = useRef<ElementRef<"textarea">>(null);
+  const text_area_ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (text_area_ref.current) {
       text_area_ref.current.focus();
