@@ -100,7 +100,6 @@ export default function Dashboard() {
           createdAt: today,
           updatedAt: today,
           userId: session.data?.user.id ?? "",
-          kids: null,
         });
         text_area_ref.current?.focus();
         return new_blobs;
@@ -181,7 +180,7 @@ export default function Dashboard() {
                         variant="ghost"
                         className="flex h-6 items-center p-1 opacity-50 hover:opacity-100 dark:hover:bg-primary/20"
                       >
-                        {k.kids?.split(",").length ?? ""}
+                        {blobs_qry.data.filter((b) => b.parentId === k.id).length || ""}
                         <ChevronRightIcon className="h-4 w-4 pt-1" />
                       </Button>
                     </Link>

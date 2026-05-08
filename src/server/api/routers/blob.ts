@@ -20,21 +20,6 @@ export const blobRouter = createTRPCRouter({
         where: (blob, { eq }) => eq(blob.userId, ctx.session.user.id),
       });
 
-      // Remove blob from parent's kids list
-      const blob_to_delete = all_blobs.find((b) => b.id === input.id);
-      if (blob_to_delete?.parentId) {
-        const parent = all_blobs.find((b) => b.id === blob_to_delete.parentId);
-        if (parent) {
-          const new_kids = (parent.kids?.split(",") ?? [])
-            .filter((k) => k !== input.id.toString())
-            .join(",");
-          await ctx.db
-            .update(blobs)
-            .set({ kids: new_kids || null })
-            .where(eq(blobs.id, parent.id));
-        }
-      }
-
       // Collect all descendant IDs via BFS
       const ids_to_delete: number[] = [];
       let current = [input.id];
@@ -65,30 +50,10 @@ export const blobRouter = createTRPCRouter({
           userId: ctx.session.user.id,
         })
         .returning({ persisted_id: blobs.id });
-      if (!input.parentId) {
-        return;
-      }
       if (ret.length === 0) {
         throw new Error("Error inserting");
       }
-      const persisted_id = ret[0]!.persisted_id;
-      const parent_id = input.parentId;
-      const parent_blob = await ctx.db.query.blobs.findFirst({
-        where: (blob, { eq }) => eq(blob.id, parent_id),
-      });
-      if (!parent_blob) {
-        return;
-      }
-      const kidsArr = parent_blob.kids?.split(",") ?? [];
-      kidsArr.push(persisted_id.toString());
-      await ctx.db
-        .insert(blobs)
-        .values({ ...parent_blob, kids: kidsArr.join(",") })
-        .onConflictDoUpdate({
-          target: blobs.id,
-          set: { kids: kidsArr.join(",") },
-        });
-      return persisted_id;
+      return ret[0]!.persisted_id;
     }),
   edit_blob_content: protectedProcedure
     .input(

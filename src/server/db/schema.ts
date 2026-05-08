@@ -54,7 +54,6 @@ export const blobs = createTable("blob", {
   content: varchar("content", { length: 500 }),
   order: integer("order").notNull(),
   parentId: integer("parentId"),
-  kids: varchar("kids", { length: 500 }), //[kid_id_1, kid_id_2, kid_id_3, ...]
 });
 
 export type BlobType = InferSelectModel<typeof blobs>;
