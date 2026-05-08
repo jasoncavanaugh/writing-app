@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
-import { db } from "~/server/db";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { blobs } from "~/server/db/schema";
 import { eq, inArray } from "drizzle-orm";
 
@@ -72,7 +71,7 @@ export const blobRouter = createTRPCRouter({
       if (ret.length === 0) {
         throw new Error("Error inserting");
       }
-      const persisted_id = ret[0]?.persisted_id!!;
+      const persisted_id = ret[0]!.persisted_id;
       const parent_id = input.parentId;
       const parent_blob = await ctx.db.query.blobs.findFirst({
         where: (blob, { eq }) => eq(blob.id, parent_id),
